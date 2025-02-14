@@ -68,7 +68,6 @@ def preprocess_function(examples):
     for idx in range(encodings_full.input_ids.shape[0]):
         pad_tokens = torch.sum(encodings_full.input_ids[idx] == tokenizer.pad_token_id)
         examples['translation'][idx]["label"] = ast.literal_eval(examples['translation'][idx]["label"])
-        #examples['translation'][idx]["label"] = [x if x!=2 else 1 for x in examples['translation'][idx]["label"]]
         curr_labels = [-100] * len(encodings_full.input_ids[idx])
         curr_labels[-pad_tokens - len(examples['translation'][idx]["label"][1:]): len(curr_labels) - pad_tokens] = examples['translation'][idx]["label"][1:]
         labels_full.append(curr_labels)
@@ -93,8 +92,6 @@ dev_dataset = processed_datasets["validation"]
 
 peft_config = LoraConfig(task_type=TaskType.TOKEN_CLS, target_modules=['q_proj','k_proj','v_proj','o_proj','gate_proj','up_proj','down_proj'], inference_mode=False, r=64, lora_alpha=256, lora_dropout=0.1)
 
-# creating model
-# Create label mappings
 quantization_config=BitsAndBytesConfig(
 	load_in_4bit=True,
 	llm_int8_threshold=6.0,
@@ -166,8 +163,7 @@ class CustomTrainer(Trainer):
         outputs = model(**inputs)
         logits = outputs.get('logits')
         # compute custom loss
-        loss_fct = torch.nn.CrossEntropyLoss(weight=torch.tensor([0.2, 0.8]).to(model.device))
-        #loss_fct = torch.nn.CrossEntropyLoss(weight=torch.tensor([0.05, 0.95]).to(model.device)) #This worked without distill data
+        loss_fct = torch.nn.CrossEntropyLoss(weight=torch.tensor([0.05, 0.95]).to(model.device)) 
         loss = loss_fct(logits.view(-1, self.model.config.num_labels), labels.view(-1))
         return (loss, outputs) if return_outputs else loss
         #remove_unused_columns=False,
