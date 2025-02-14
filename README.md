@@ -30,6 +30,7 @@ cd quality-aware-decoding-translation
 
 ## Example usage of Quality-Aware Decoding
 
+### Load the Translation, QE models
 ```
 from transformers import  AutoModelForCausalLM, AutoModelForTokenClassification, LogitsProcessorList, AutoTokenizer
 from qe_logits_processor import QELogitsProcessor
@@ -39,14 +40,18 @@ cache_dir = "./hf_cache/"
 
 tokenizer = AutoTokenizer.from_pretrained(model_id,cache_dir=cache_dir)
 tokenizer.padding_side = "left" # Inference mode
+padding="longest"
 model = AutoModelForCausalLM.from_pretrained(model_id, cache_dir=cache_dir).to("cuda:0")
 
 id2label = {0: "0", 1: "1"}
 label2id = {v: k for k, v in id2label.items()}
 qe_model = AutoModelForTokenClassification.from_pretrained(model_id,cache_dir=cache_dir, id2label=id2label,label2id=label2id, device_map="auto",  max_memory={0: "0GB", 1: "48GB"})
 
-qe_model.load_adapter("skoneru/tower_qe_ende_mqm") 
+qe_model.load_adapter("skoneru/tower_qe_ende_mqm")
+```
 
+### Define Prompts
+```
 prefix = "<|im_start|>user\nTranslate the sentence from English into German.\nEnglish: "
 suffix = "\nGerman:"
 pe_suffix = "<|im_end|>\n<|im_start|>assistant\n"
@@ -55,8 +60,10 @@ pe_suffix = "<|im_end|>\n<|im_start|>assistant\n"
 prefix_classifier = "English:\n"
 suffix_classifier = "\nGerman:\n"
 
-padding="longest"
+```
 
+### Create Formatted input and Logit Processor
+```
 src_batch = ["Department of Homeland Security."]
 num_return_sequences=5
 num_beams=5
@@ -75,19 +82,21 @@ logits_processor = LogitsProcessorList(
     QELogitsProcessor(qe_model=qe_model, tokenizer=tokenizer, prompt=text_classifier, topk=topk, num_beams=num_beams, alpha=alpha),
     ]
 )
-
+```
 
 ### Without Quality-Aware Decoding
+```
 output = model.generate(**inputs, num_beams=num_beams, max_new_tokens=1024, eos_token_id =32005, num_return_sequences=num_return_sequences)
 print("Quality-Unaware Decoding Top Sequences:")
 for idx in range(len(src_batch)):
     for entry in range(num_return_sequences):
         curr_hyp = tokenizer.decode(output[idx*num_return_sequences + entry][len(inputs.input_ids[idx]):], skip_special_tokens=True)
         print(curr_hyp)
-
+```
 
 
 ### With Quality-Aware Decoding
+```
 output = model.generate(**inputs, num_beams=num_beams, max_new_tokens=1024, eos_token_id =32005, num_return_sequences=num_return_sequences, logits_processor=logits_processor)
 print("Quality-Aware Decoding Top Sequences:")
 for idx in range(len(src_batch)):
